@@ -3,6 +3,9 @@
 App web mobile-first para organizar o amigo secreto de um grupo de amigos. Funciona 100% no
 navegador, sem backend, e é publicado como site estático no GitHub Pages.
 
+**No ar:** https://ruddypulido.github.io/amigo-secreto/  
+**Repositório:** https://github.com/RuddyPulido/amigo-secreto
+
 ## Funcionalidades
 
 - Aba **Sorteio** com um combo das pessoas que ainda não sortearam e o botão de sorteio.
@@ -105,7 +108,7 @@ Se o POST de Pages falhar porque o repositório ainda está vazio, faça o push 
 Pages e rode o workflow com `gh workflow run deploy.yml`. Também é possível habilitar em
 **Settings → Pages → Source: GitHub Actions**.
 
-URL esperada: `https://<login>.github.io/amigo-secreto/`.
+URL publicada: `https://ruddypulido.github.io/amigo-secreto/`.
 
 No celular, use o menu do navegador e escolha **Adicionar à tela de início** para abrir como um
 atalho de tela cheia.
