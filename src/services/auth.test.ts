@@ -122,7 +122,7 @@ describe('esqueci a senha', () => {
     await activateAll(db)
 
     expect(await requestPasswordReset(db, 'Fulano')).toMatchObject({ ok: false })
-    expect(await requestPasswordReset(db, 'ana')).toEqual({ ok: true })
+    expect(await requestPasswordReset(db, 'ana')).toEqual({ ok: true, name: 'Ana' })
     expect(await db.get(`${PATHS.resets}/ana`)).toBe(true)
   })
 

@@ -85,14 +85,14 @@ export async function acceptInvite(db: Db, token: string, password: string): Pro
 export async function requestPasswordReset(
   db: Db,
   nameInput: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<{ ok: true; name: string } | { ok: false; message: string }> {
   const person = await findPersonByName(db, nameInput)
   if (!person) {
     return { ok: false, message: 'Não encontramos esse nome. Confira como foi cadastrado.' }
   }
 
   await db.set(`${PATHS.resets}/${person.id}`, true)
-  return { ok: true }
+  return { ok: true, name: person.name }
 }
 
 // Gera um novo convite (e invalida o anterior). Não altera a senha atual nem o sorteio.

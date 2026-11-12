@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ArrowLeft, Gift, LogIn, Send } from 'lucide-react'
 import type { Db } from '../../data/db'
 import { login, requestPasswordReset } from '../../services/auth'
+import { notifyPasswordReset } from '../../services/notify'
 import type { Session } from '../../types'
 import {
   cardClass,
@@ -49,6 +50,7 @@ export function LoginScreen({ db, onLogin }: LoginScreenProps) {
     try {
       const result = await requestPasswordReset(db, identifier)
       if (result.ok) {
+        void notifyPasswordReset(result.name)
         setNotice(
           'Pedido enviado! O organizador vai reenviar o convite pelo WhatsApp para você criar uma nova senha. Seu sorteio não será alterado.',
         )
