@@ -1,131 +1,75 @@
 # Amigo Secreto
 
-App web mobile-first para organizar o amigo secreto de um grupo de amigos. Funciona 100% no
-navegador, sem backend, e é publicado como site estático no GitHub Pages.
+App web mobile-first para o amigo secreto de um grupo de amigos. Cada pessoa entra no **próprio
+celular** com telefone e senha, sorteia o próprio amigo secreto e só vê o próprio resultado.
 
-**No ar:** https://ruddypulido.github.io/amigo-secreto/  
-**Repositório:** https://github.com/RuddyPulido/amigo-secreto
+> Esta é a versão **multiusuário** (branch `feature/multiusuario-whatsapp`). A versão de um
+> celular único, publicada em https://ruddypulido.github.io/amigo-secreto/, continua na `main`.
 
-## Funcionalidades
+## Como funciona
 
-- Aba **Sorteio** com um combo das pessoas que ainda não sortearam e o botão de sorteio.
-- Aba **Configurações** com cadastro de famílias (nome), cadastro de pessoas (nome, família e
-  indicação de criança) e as regras globais **Permitir sorteio entre familiares** e
-  **Criança apenas sorteia criança**.
-- Sorteio sempre concluível: cada pessoa sorteia exatamente uma vez, todos são sorteados
-  exatamente uma vez, ninguém tira a si mesmo e, com a regra desligada, ninguém tira alguém
-  da própria família. Com a separação por idade ligada, crianças só tiram crianças e adultos só
-  tiram adultos.
-- Revelação privada: o resultado só aparece após um toque, pode ser ocultado e a lista
-  "Quem já sorteou" permite reexibir com confirmação.
-- Persistência no `localStorage` e botão para reiniciar o sorteio mantendo os cadastros.
-- Layout mobile-first em pt-BR, com foco em acessibilidade e safe areas do iOS.
-
-## Como o sorteio funciona
-
-O sorteio é tratado como um emparelhamento perfeito entre quem ainda vai sortear e quem ainda
-pode ser sorteado. A cada clique, o app só oferece alvos que preservam a possibilidade de
-concluir todos os sorteios restantes. Assim, independentemente da ordem em que as pessoas
-sorteiam, o sorteio nunca trava no meio e termina válido.
-
-- O auto-sorteio é sempre proibido.
-- Com a regra entre familiares **desligada**, pares da mesma família não são permitidos. Nesse
-  caso, a maior família não pode ter mais da metade dos participantes; se tiver, o app explica o
-  problema e como resolver.
-- Com a regra **ligada**, pessoas da mesma família podem se sortear, mas ninguém sorteia a si
-  mesmo(a).
-- Com **Criança apenas sorteia criança** ligada, crianças sorteiam apenas crianças e adultos
-  apenas adultos. Cada grupo precisa ter pelo menos 2 pessoas (a menos que esteja vazio) e
-  respeitar a regra de família. A marcação "É criança" fica no cadastro de cada pessoa.
-- A visibilidade da regra vale para todo o grupo e alterá-la durante um sorteio reinicia o
-  sorteio, mediante confirmação.
+- **Organizador (master)** — usuário fixo `admin`. Não participa do sorteio, só administra:
+  cadastra famílias e pessoas (com o telefone do WhatsApp), define as regras, **libera** o
+  sorteio e pode **reiniciá-lo**. Vê quem já sorteou, **nunca** quem tirou quem.
+- **Convite por WhatsApp** — ao cadastrar uma pessoa, o organizador toca em **Enviar convite**:
+  abre o WhatsApp com a mensagem e o link prontos (`wa.me`). Ao abrir o link, a pessoa cria uma
+  senha e já entra.
+- **Pessoas** — veem uma única tela: aguardando o organizador liberar, o botão **Sortear** quando
+  liberado e, depois, **Ver quem eu tirei** (escondido por padrão).
+- **Esqueci a senha** — a pessoa informa o telefone; o pedido aparece no painel do organizador,
+  que reenvia o convite. A nova senha **não altera o resultado do sorteio**.
+- **Regras** (globais): *Permitir sorteio entre familiares* e *Criança apenas sorteia criança*.
+  O sorteio sempre fecha: cada pessoa sorteia uma vez, ninguém tira a si mesmo, e as regras são
+  respeitadas em qualquer ordem. Duas pessoas sorteando ao mesmo tempo não colidem (transação).
 
 ## Stack
 
-- React 19 + TypeScript (strict)
-- Vite 8
-- Tailwind CSS 4
-- Vitest (testes do algoritmo, persistência e reducer)
-- lucide-react (ícones)
-- GitHub Actions + GitHub Pages
+React 19 + TypeScript (strict) · Vite 8 · Tailwind 4 · Vitest · **Firebase Realtime Database**
+(sem servidor próprio; o site continua estático no GitHub Pages).
 
-## Rodando localmente
+## Rodando localmente (sem conta no Firebase)
 
-Requisito: Node 22 (o projeto tem `.nvmrc`).
+Requisitos: Node 22 e Java 21+ (o emulador do Firebase usa Java).
 
 ```bash
-# nesta máquina o Node está no nvm e pode não estar no PATH:
-export PATH="$HOME/.nvm/versions/node/v22.18.0/bin:$PATH"
-# ou: source ~/.nvm/nvm.sh && nvm use
-
+export PATH="$HOME/.nvm/versions/node/v22.18.0/bin:$PATH"   # se o Node não estiver no PATH
 npm install
-npm run dev
+
+npm run emulator     # terminal 1: Realtime Database local (127.0.0.1:9000)
+npm run dev:local    # terminal 2: app em http://127.0.0.1:5173
 ```
 
-Abra `http://localhost:5173`. Para testar no celular na mesma rede:
+Login do organizador: usuário `admin` (a senha é a combinada com o dono do projeto).
+
+Para simular várias pessoas, use janelas anônimas/perfis diferentes do navegador: cada uma tem o
+próprio login. Os dados do emulador ficam só na memória (somem ao parar o emulador). O emulador
+só é acessível neste computador — para testar em celulares reais é preciso um projeto Firebase
+de verdade (abaixo).
+
+### Testes
 
 ```bash
-npm run dev -- --host
+npm test         # Vitest (lógica do sorteio, convites, senhas, administração, concorrência)
+npm run lint
+npm run build
 ```
 
-### Testes e build
+## Usando um projeto Firebase real (para publicar)
 
-```bash
-npm test        # Vitest
-npm run lint    # ESLint
-npm run build   # typecheck + bundle em dist/
-npm run preview # serve o build localmente
-```
+1. Crie um projeto no Firebase e um **Realtime Database**.
+2. Em *Regras*, use as de `database.rules.json` (acesso aberto — o app é para amigos, sem
+   segurança forte).
+3. Copie `.env.example` para `.env.production` e preencha `VITE_FIREBASE_*` e `VITE_PUBLIC_URL`
+   (a URL pública usada nos convites).
+4. `npm run build` e publique `dist/` (o workflow do GitHub Actions faz isso a cada push na `main`;
+   as variáveis `VITE_*` precisam estar disponíveis no build).
 
-## Dados e privacidade
+## Limites conhecidos (de propósito, dado o uso entre amigos)
 
-Os cadastros e os sorteios ficam no `localStorage` **deste navegador/aparelho**, na chave
-`amigo-secreto:state:v1`. Não há login, sincronização entre celulares nem backup.
-
-- Limpar os dados do site apaga famílias, pessoas e resultados.
-- Use uma aba por vez; abrir duas abas pode sobrescrever o estado.
-- Estados salvos antes da separação por idade são compatíveis: pessoas sem a marcação são
-  tratadas como adultas e a regra começa desligada.
-- O resultado é protegido contra olhares casuais (diálogo, ocultação e confirmação para reexibir),
-  não contra alguém que inspecione o `localStorage` pelas ferramentas do navegador.
-- O app é estático e público no GitHub Pages; os dados não são enviados para lugar nenhum.
-
-## Publicação no GitHub Pages
-
-O deploy é feito pelo workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) a
-cada push na branch `main`. O workflow roda testes, faz o build e publica `dist/` via GitHub
-Actions.
-
-Configuração inicial (uma vez):
-
-```bash
-brew install gh
-gh auth login --hostname github.com --git-protocol ssh --web
-
-OWNER=$(gh api user --jq .login)
-git init -b main
-git add -A
-git commit -m "feat: app amigo secreto"
-gh repo create amigo-secreto --public --source=. --remote=origin
-gh api -X POST "repos/$OWNER/amigo-secreto/pages" -f build_type=workflow
-git push -u origin main
-```
-
-Se o POST de Pages falhar porque o repositório ainda está vazio, faça o push primeiro, habilite
-Pages e rode o workflow com `gh workflow run deploy.yml`. Também é possível habilitar em
-**Settings → Pages → Source: GitHub Actions**.
-
-URL publicada: `https://ruddypulido.github.io/amigo-secreto/`.
-
-No celular, use o menu do navegador e escolha **Adicionar à tela de início** para abrir como um
-atalho de tela cheia.
-
-## Estrutura
-
-```
-src/
-  lib/        algoritmo de sorteio, matching, persistência, validação, RNG
-  store/      reducer e hook de estado persistido
-  components/ nav, diálogo, switch, progresso
-  features/   telas de Sorteio e Configurações
-```
+- Não há segurança forte: o banco tem regras abertas e a senha do organizador é conferida no
+  navegador, então alguém curioso com conhecimento técnico poderia ler os dados. A interface
+  esconde os resultados de quem não deve vê-los.
+- O envio do WhatsApp é **manual** (o organizador toca em enviar). Envio automático exigiria a API
+  oficial do WhatsApp, com conta empresarial e custo.
+- Telefones novos devem ser cadastrados com DDD (o código do país 55 é adicionado automaticamente;
+  use `+` para números de outros países).

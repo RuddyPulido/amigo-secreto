@@ -19,14 +19,20 @@ export interface AppSettings {
   onlyChildrenDrawChildren: boolean
 }
 
-export interface DrawState {
-  assignments: Assignments
+// Dados de acesso: ficam separados da lista pública de pessoas.
+export interface Credential {
+  phone: string
+  passwordHash?: string
+  inviteToken?: string
 }
 
-export interface AppState {
-  version: 1
-  families: Family[]
-  people: Person[]
-  settings: AppSettings
-  draw: DrawState
+export interface DrawState {
+  open: boolean
+  assignments: Assignments
+  // Quem já sorteou (sem o resultado): é o que o organizador enxerga.
+  drawn: Record<Id, true>
 }
+
+export type Session =
+  | { role: 'master' }
+  | { role: 'person'; personId: Id; passwordHash: string }

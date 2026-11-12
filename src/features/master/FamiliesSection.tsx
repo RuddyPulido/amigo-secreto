@@ -14,7 +14,7 @@ import {
   smallPrimaryButtonClass,
   smallSecondaryButtonClass,
 } from '../../components/ui'
-import type { DispatchAction, RequestAction } from './types'
+import type { DispatchAction, RequestAction } from './controller'
 
 interface FamiliesSectionProps {
   families: Family[]
@@ -51,12 +51,14 @@ export function FamiliesSection({
 
     setNewError(null)
     setRowError(null)
+    const submitted = newName
     requestAction(
       {
         type: 'family/add',
         family: { id: newId(), name: normalizeName(newName) },
       },
-      () => setNewName(''),
+      // Só limpa se a pessoa ainda não começou a digitar o próximo nome.
+      () => setNewName((current) => (current === submitted ? '' : current)),
     )
   }
 

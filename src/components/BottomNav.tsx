@@ -1,17 +1,18 @@
-import { Gift, Settings } from 'lucide-react'
-import type { Tab } from '../App'
+import type { LucideIcon } from 'lucide-react'
 
-interface BottomNavProps {
-  tab: Tab
-  onChange: (tab: Tab) => void
+export interface NavItem<T extends string> {
+  id: T
+  label: string
+  icon: LucideIcon
 }
 
-const items = [
-  { id: 'draw' as const, label: 'Sorteio', icon: Gift },
-  { id: 'settings' as const, label: 'Configurações', icon: Settings },
-]
+interface BottomNavProps<T extends string> {
+  items: readonly NavItem<T>[]
+  value: T
+  onChange: (value: T) => void
+}
 
-export function BottomNav({ tab, onChange }: BottomNavProps) {
+export function BottomNav<T extends string>({ items, value, onChange }: BottomNavProps<T>) {
   return (
     <nav
       aria-label="Navegação principal"
@@ -20,7 +21,7 @@ export function BottomNav({ tab, onChange }: BottomNavProps) {
       <div className="mx-auto flex max-w-md gap-2 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         {items.map((item) => {
           const Icon = item.icon
-          const active = tab === item.id
+          const active = value === item.id
 
           return (
             <button

@@ -1,62 +1,109 @@
-import { useState } from 'react'
-import { BottomNav } from './components/BottomNav'
-import { NoticeBanner } from './components/NoticeBanner'
-import { DrawTab } from './features/draw/DrawTab'
-import { SettingsTab } from './features/settings/SettingsTab'
-import { useAppState } from './store/useAppState'
-
-export type Tab = 'draw' | 'settings'
+import { useCallback, useEffect, useState } from 'react'
+import { DatabaseZap } from 'lucide-react'
+import { clearSession, loadSession, saveSession } from './auth/sessionStorage'
+import { getDb, isDbConfigured } from './data'
+import type { Db } from './data/db'
+import { InviteScreen } from './features/auth/InviteScreen'
+import { LoginScreen } from './features/auth/LoginScreen'
+import { MasterApp } from './features/master/MasterApp'
+import { PersonApp } from './features/person/PersonApp'
+import { clearHash, useHash } from './hooks/useHash'
+import { isSessionValid } from './services/auth'
+import { parseInviteToken } from './services/invite'
+import type { Session } from './types'
+import { cardClass } from './components/ui'
 
 export default function App() {
-  const { state, dispatch, notice, dismissNotice, saveError } = useAppState()
-  const [tab, setTab] = useState<Tab>('draw')
+  if (!isDbConfigured()) return <ConfigMissing />
+  return <Shell db={getDb()} />
+}
 
+function Shell({ db }: { db: Db }) {
+  const [session, setSession] = useState<Session | null>(() => loadSession())
+  const [checked, setChecked] = useState(() => loadSession() === null)
+  const hash = useHash()
+  const inviteToken = parseInviteToken(hash)
+
+  // Confere a sessão salva (senha trocada ou pessoa removida derrubam o acesso).
+  useEffect(() => {
+    if (checked || !session) return
+    let cancelled = false
+    isSessionValid(db, session)
+      .then((valid) => {
+        if (cancelled) return
+        if (!valid) {
+          clearSession()
+          setSession(null)
+        }
+        setChecked(true)
+      })
+      .catch(() => {
+        // Sem conexão: mantém a sessão e deixa a tela tentar carregar.
+        if (!cancelled) setChecked(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [db, session, checked])
+
+  const handleLogin = useCallback((next: Session) => {
+    saveSession(next)
+    setSession(next)
+    setChecked(true)
+    clearHash()
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    clearSession()
+    setSession(null)
+    setChecked(true)
+  }, [])
+
+  if (inviteToken) {
+    return (
+      <InviteScreen
+        db={db}
+        token={inviteToken}
+        onAccepted={handleLogin}
+        onBackToLogin={clearHash}
+      />
+    )
+  }
+
+  if (!checked) {
+    return (
+      <p role="status" className="py-20 text-center text-sm text-ink/55">
+        Carregando…
+      </p>
+    )
+  }
+
+  if (!session) return <LoginScreen db={db} onLogin={handleLogin} />
+  if (session.role === 'master') return <MasterApp db={db} onLogout={handleLogout} />
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
-      <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
-        <div className="space-y-3">
-          {saveError ? (
-            <NoticeBanner
-              tone="warning"
-              message="Não foi possível salvar neste navegador. Os dados podem ser perdidos ao fechar a página."
-            />
-          ) : notice === 'unavailable' ? (
-            <NoticeBanner
-              tone="warning"
-              message="Não foi possível acessar o armazenamento deste navegador. O app funciona, mas os dados não serão salvos."
-              onDismiss={dismissNotice}
-            />
-          ) : null}
+    <PersonApp
+      db={db}
+      personId={session.personId}
+      passwordHash={session.passwordHash}
+      onLogout={handleLogout}
+    />
+  )
+}
 
-          {notice === 'corrupt' ? (
-            <NoticeBanner
-              tone="warning"
-              message="Os dados salvos estavam inválidos e foram reiniciados."
-              onDismiss={dismissNotice}
-            />
-          ) : null}
-
-          {notice === 'draw-discarded' ? (
-            <NoticeBanner
-              tone="warning"
-              message="O sorteio salvo não pôde ser recuperado e foi reiniciado. Os cadastros foram mantidos."
-              onDismiss={dismissNotice}
-            />
-          ) : null}
-        </div>
-
-        {tab === 'draw' ? (
-          <DrawTab
-            state={state}
-            dispatch={dispatch}
-            onOpenSettings={() => setTab('settings')}
-          />
-        ) : (
-          <SettingsTab state={state} dispatch={dispatch} />
-        )}
-      </main>
-
-      <BottomNav tab={tab} onChange={setTab} />
+function ConfigMissing() {
+  return (
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
+      <section className={`${cardClass} text-center`}>
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gold/15 text-gold">
+          <DatabaseZap className="h-7 w-7" aria-hidden="true" />
+        </span>
+        <h1 className="mt-4 text-lg font-semibold text-forest">Banco de dados não configurado</h1>
+        <p className="mt-2 text-sm leading-relaxed text-ink/65">
+          Defina as variáveis <code>VITE_FIREBASE_PROJECT_ID</code> e{' '}
+          <code>VITE_FIREBASE_DATABASE_URL</code> (veja o README) ou rode o emulador local
+          com <code>npm run emulator</code>.
+        </p>
+      </section>
     </div>
   )
 }

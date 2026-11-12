@@ -13,10 +13,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "emulator": "npx --yes firebase-tools@15.36.0 emulators:start --only database --project demo-amigo-secreto",
+    "dev:local": "vite --host 127.0.0.1"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.5",
+    "firebase": "^13.3.0",
     "lucide-react": "^1.72.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
