@@ -33,7 +33,7 @@ describe('login do master', () => {
     expect(isMasterLogin('outro', 'errada')).toBe(false)
     expect(await login(db, 'admin', 'errada')).toEqual({
       ok: false,
-      message: 'Telefone ou senha incorretos.',
+      message: 'Nome ou senha incorretos.',
     })
   })
 
@@ -88,52 +88,52 @@ describe('convite', () => {
 })
 
 describe('login de pessoa', () => {
-  it('entra com o telefone em qualquer formato', async () => {
+  it('entra pelo nome, sem diferenciar maiúsculas e acentos', async () => {
     const db = await invitedGroup()
     await activateAll(db)
 
-    for (const phone of ['(11) 90000-0001', '11900000001', '+55 11 90000-0001']) {
-      const result = await login(db, phone, PASSWORD)
-      expect(result.ok, phone).toBe(true)
+    for (const name of ['Ana', 'ana', '  ANA ']) {
+      const result = await login(db, name, PASSWORD)
+      expect(result.ok, name).toBe(true)
     }
   })
 
-  it('rejeita senha errada e telefone desconhecido com a mesma mensagem', async () => {
+  it('rejeita senha errada e nome desconhecido com a mesma mensagem', async () => {
     const db = await invitedGroup()
     await activateAll(db)
 
-    const wrongPassword = await login(db, '11900000001', 'errada')
-    const unknown = await login(db, '11999999999', PASSWORD)
-    expect(wrongPassword).toEqual({ ok: false, message: 'Telefone ou senha incorretos.' })
+    const wrongPassword = await login(db, 'Ana', 'errada')
+    const unknown = await login(db, 'Fulano', PASSWORD)
+    expect(wrongPassword).toEqual({ ok: false, message: 'Nome ou senha incorretos.' })
     expect(unknown).toEqual(wrongPassword)
   })
 
   it('avisa quando a pessoa ainda não aceitou o convite', async () => {
     const db = await invitedGroup()
-    const result = await login(db, '11900000001', PASSWORD)
+    const result = await login(db, 'Ana', PASSWORD)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toContain('convite')
   })
 })
 
 describe('esqueci a senha', () => {
-  it('registra o pedido e rejeita telefone desconhecido', async () => {
+  it('registra o pedido e rejeita nome desconhecido', async () => {
     const db = await invitedGroup()
     await activateAll(db)
 
-    expect(await requestPasswordReset(db, '11999999999')).toMatchObject({ ok: false })
-    expect(await requestPasswordReset(db, '(11) 90000-0001')).toEqual({ ok: true })
+    expect(await requestPasswordReset(db, 'Fulano')).toMatchObject({ ok: false })
+    expect(await requestPasswordReset(db, 'ana')).toEqual({ ok: true })
     expect(await db.get(`${PATHS.resets}/ana`)).toBe(true)
   })
 
   it('novo convite invalida o anterior e a senha antiga vale até trocar', async () => {
     const db = await invitedGroup()
     await activateAll(db)
-    await requestPasswordReset(db, '11900000001')
+    await requestPasswordReset(db, 'Ana')
 
     const token = await issueInvite(db, 'ana')
     expect(token).toMatch(/^[A-Za-z0-9]{20}$/)
-    expect((await login(db, '11900000001', PASSWORD)).ok).toBe(true)
+    expect((await login(db, 'Ana', PASSWORD)).ok).toBe(true)
 
     const second = await issueInvite(db, 'ana')
     expect(await getInvite(db, token!)).toBeNull()
@@ -143,15 +143,15 @@ describe('esqueci a senha', () => {
   it('definir nova senha limpa o pedido e a senha antiga deixa de valer', async () => {
     const db = await invitedGroup()
     await activateAll(db)
-    await requestPasswordReset(db, '11900000001')
+    await requestPasswordReset(db, 'Ana')
     const token = (await issueInvite(db, 'ana'))!
 
     const result = await acceptInvite(db, token, 'novasenha')
 
     expect(result.ok).toBe(true)
     expect(await db.get(`${PATHS.resets}/ana`)).toBeNull()
-    expect((await login(db, '11900000001', PASSWORD)).ok).toBe(false)
-    expect((await login(db, '11900000001', 'novasenha')).ok).toBe(true)
+    expect((await login(db, 'Ana', PASSWORD)).ok).toBe(false)
+    expect((await login(db, 'Ana', 'novasenha')).ok).toBe(true)
   })
 
   it('trocar a senha NÃO altera o resultado do sorteio', async () => {
@@ -162,7 +162,7 @@ describe('esqueci a senha', () => {
     expect(drawn.ok).toBe(true)
     if (!drawn.ok) return
 
-    await requestPasswordReset(db, '11900000001')
+    await requestPasswordReset(db, 'Ana')
     await acceptInvite(db, (await issueInvite(db, 'ana'))!, 'novasenha')
 
     expect(await db.get(`${PATHS.draw}/assignments/ana`)).toBe(drawn.targetId)
@@ -206,41 +206,16 @@ describe('telefone compartilhado', () => {
   const shared = [
     { id: 'p1', name: 'Pai', familyId: 'f1', isChild: false, phone: '(11) 98888-0000' },
     { id: 'k1', name: 'Filho', familyId: 'f1', isChild: true, phone: '(11) 98888-0000' },
-    { id: 'k2', name: 'Filha', familyId: 'f1', isChild: true, phone: '(11) 98888-0000' },
   ]
 
-  async function setup() {
+  it('pai e filho com o mesmo telefone e a mesma senha entram pelo nome', async () => {
     const db = createMemoryDb()
     await seedGroup(db, shared)
-    const invite = async (id: string) =>
-      (await db.get<Credential>(`${PATHS.credentials}/${id}`))!.inviteToken!
-    return { db, invite }
-  }
+    await activateAll(db, shared)
 
-  it('cada pessoa entra com a própria senha', async () => {
-    const { db, invite } = await setup()
-    expect((await acceptInvite(db, await invite('p1'), 'senha-pai')).ok).toBe(true)
-    expect((await acceptInvite(db, await invite('k1'), 'senha-filho')).ok).toBe(true)
-
-    const pai = await login(db, '11988880000', 'senha-pai')
-    const filho = await login(db, '11988880000', 'senha-filho')
+    const pai = await login(db, 'Pai', PASSWORD)
+    const filho = await login(db, 'Filho', PASSWORD)
     expect(pai.ok && pai.session.role === 'person' && pai.session.personId).toBe('p1')
     expect(filho.ok && filho.session.role === 'person' && filho.session.personId).toBe('k1')
-    expect((await login(db, '11988880000', 'errada')).ok).toBe(false)
-  })
-
-  it('não deixa duas pessoas do mesmo telefone terem a mesma senha', async () => {
-    const { db, invite } = await setup()
-    await acceptInvite(db, await invite('p1'), 'igual')
-    const result = await acceptInvite(db, await invite('k1'), 'igual')
-    expect(result.ok).toBe(false)
-  })
-
-  it('esqueci a senha vale para todas as pessoas do telefone', async () => {
-    const { db } = await setup()
-    expect((await requestPasswordReset(db, '11988880000')).ok).toBe(true)
-    for (const id of ['p1', 'k1', 'k2']) {
-      expect(await db.get(`${PATHS.resets}/${id}`)).toBe(true)
-    }
   })
 })

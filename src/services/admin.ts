@@ -1,5 +1,6 @@
 import type { Db } from '../data/db'
 import { PATHS, parseDraw, parsePeople, parseFamilies, parseSettings } from '../data/parse'
+import { validatePersonName } from '../lib/validation'
 import { checkFeasibility } from '../lib/draw'
 import { newToken } from '../lib/ids'
 import { normalizePhone, validatePhone } from '../lib/phone'
@@ -94,6 +95,11 @@ export async function applyAdminAction(db: Db, action: AdminAction): Promise<Adm
       const phone = normalizePhone(action.phone)
       const phoneError = validatePhone(action.phone)
       if (phoneError) return fail(phoneError)
+      const nameError = validatePersonName(
+        action.person.name,
+        parsePeople(await db.get(PATHS.people)),
+      )
+      if (nameError) return fail(nameError)
 
       const token = newToken()
       await db.update({
@@ -103,7 +109,6 @@ export async function applyAdminAction(db: Db, action: AdminAction): Promise<Adm
           isChild: action.person.isChild,
         },
         [`${PATHS.credentials}/${action.person.id}`]: { phone, inviteToken: token },
-        [`${PATHS.phones}/${phone}/${action.person.id}`]: true,
         [`${PATHS.invites}/${token}`]: action.person.id,
         ...((await hasDraws(db)) ? RESET_DRAW : {}),
       })
@@ -118,6 +123,8 @@ export async function applyAdminAction(db: Db, action: AdminAction): Promise<Adm
       const phone = normalizePhone(action.phone)
       const phoneError = validatePhone(action.phone)
       if (phoneError) return fail(phoneError)
+      const nameError = validatePersonName(action.name, people, action.id)
+      if (nameError) return fail(nameError)
 
       const credential = await db.get<Credential>(`${PATHS.credentials}/${action.id}`)
       const phoneChanged = credential?.phone !== phone
@@ -133,10 +140,6 @@ export async function applyAdminAction(db: Db, action: AdminAction): Promise<Adm
         },
         ...(phoneChanged
           ? {
-              ...(credential
-                ? { [`${PATHS.phones}/${credential.phone}/${action.id}`]: null }
-                : {}),
-              [`${PATHS.phones}/${phone}/${action.id}`]: true,
               [`${PATHS.credentials}/${action.id}/phone`]: phone,
             }
           : {}),
@@ -151,13 +154,8 @@ export async function applyAdminAction(db: Db, action: AdminAction): Promise<Adm
         [`${PATHS.people}/${action.id}`]: null,
         [`${PATHS.credentials}/${action.id}`]: null,
         [`${PATHS.resets}/${action.id}`]: null,
-        ...(credential
-          ? {
-              [`${PATHS.phones}/${credential.phone}/${action.id}`]: null,
-              ...(credential.inviteToken
-                ? { [`${PATHS.invites}/${credential.inviteToken}`]: null }
-                : {}),
-            }
+        ...(credential?.inviteToken
+          ? { [`${PATHS.invites}/${credential.inviteToken}`]: null }
           : {}),
         ...((await hasDraws(db)) ? RESET_DRAW : {}),
       })

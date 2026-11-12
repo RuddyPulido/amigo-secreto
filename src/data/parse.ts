@@ -14,7 +14,6 @@ export const PATHS = {
   settings: 'state/settings',
   draw: 'state/draw',
   credentials: 'auth/credentials',
-  phones: 'auth/phones',
   invites: 'auth/invites',
   resets: 'auth/resets',
 } as const

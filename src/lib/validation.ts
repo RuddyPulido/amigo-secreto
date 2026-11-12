@@ -8,7 +8,11 @@ export function normalizeName(value: string): string {
 }
 
 export function nameKey(value: string): string {
-  return normalizeName(value).toLocaleLowerCase('pt-BR')
+  // Sem acentos nem maiúsculas: "João" e "joao" são o mesmo nome (o login é pelo nome).
+  return normalizeName(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
 }
 
 export function validateFamilyName(
@@ -41,6 +45,7 @@ export function validatePersonName(
   }
 
   const key = nameKey(name)
+  if (key === 'admin') return 'Esse nome é reservado ao organizador.'
   if (people.some((person) => person.id !== ignoreId && nameKey(person.name) === key)) {
     return 'Já existe uma pessoa com esse nome.'
   }

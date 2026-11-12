@@ -18,7 +18,7 @@ async function startedGroup() {
 }
 
 describe('cadastro de pessoas', () => {
-  it('cria pessoa, telefone normalizado, índice e convite', async () => {
+  it('cria pessoa, telefone normalizado e convite', async () => {
     const db = createMemoryDb()
     await seedGroup(db)
 
@@ -31,7 +31,6 @@ describe('cadastro de pessoas', () => {
     expect(credential?.phone).toBe('5511900000001')
     expect(credential?.inviteToken).toMatch(/^[A-Za-z0-9]{20}$/)
     expect(credential?.passwordHash).toBeUndefined()
-    expect(await db.get(`${PATHS.phones}/5511900000001`)).toEqual({ ana: true })
     expect(await db.get(`${PATHS.invites}/${credential!.inviteToken}`)).toBe('ana')
   })
 
@@ -45,7 +44,6 @@ describe('cadastro de pessoas', () => {
       phone: '+55 11 90000-0001',
     })
     expect(duplicate.ok).toBe(true)
-    expect(await db.get(`${PATHS.phones}/5511900000001`)).toEqual({ ana: true, novo: true })
 
     const invalid = await applyAdminAction(db, {
       type: 'person/add',
@@ -56,7 +54,29 @@ describe('cadastro de pessoas', () => {
     expect(await db.get(`${PATHS.people}/novo2`)).toBeNull()
   })
 
-  it('trocar o telefone move o índice e preserva a senha', async () => {
+  it('rejeita nome repetido (sem acento/maiúscula) e o nome admin', async () => {
+    const db = createMemoryDb()
+    await seedGroup(db)
+    for (const name of ['ana', 'ÁNA', 'Admin']) {
+      const result = await applyAdminAction(db, {
+        type: 'person/add',
+        person: { id: 'x', name, familyId: 'f1', isChild: false },
+        phone: '(11) 97777-0000',
+      })
+      expect(result.ok, name).toBe(false)
+    }
+    const rename = await applyAdminAction(db, {
+      type: 'person/update',
+      id: 'bia',
+      name: 'Ana',
+      familyId: 'f1',
+      isChild: false,
+      phone: '(11) 90000-0002',
+    })
+    expect(rename.ok).toBe(false)
+  })
+
+  it('trocar o telefone preserva a senha', async () => {
     const db = createMemoryDb()
     await seedGroup(db)
     await activateAll(db)
@@ -72,8 +92,6 @@ describe('cadastro de pessoas', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(await db.get(`${PATHS.phones}/5511900000001`)).toBeNull()
-    expect(await db.get(`${PATHS.phones}/5521988887777`)).toEqual({ ana: true })
     const after = await db.get<Credential>(`${PATHS.credentials}/ana`)
     expect(after?.phone).toBe('5521988887777')
     expect(after?.passwordHash).toBe(before?.passwordHash)
@@ -92,10 +110,9 @@ describe('cadastro de pessoas', () => {
       phone: '(11) 90000-0002',
     })
     expect(result.ok).toBe(true)
-    expect(await db.get(`${PATHS.phones}/5511900000002`)).toEqual({ ana: true, bia: true })
   })
 
-  it('excluir pessoa limpa credenciais, telefone e convite', async () => {
+  it('excluir pessoa limpa credenciais e convite', async () => {
     const db = createMemoryDb()
     await seedGroup(db)
     const credential = await db.get<Credential>(`${PATHS.credentials}/ana`)
@@ -104,7 +121,6 @@ describe('cadastro de pessoas', () => {
 
     expect(await db.get(`${PATHS.people}/ana`)).toBeNull()
     expect(await db.get(`${PATHS.credentials}/ana`)).toBeNull()
-    expect(await db.get(`${PATHS.phones}/5511900000001`)).toBeNull()
     expect(await db.get(`${PATHS.invites}/${credential!.inviteToken}`)).toBeNull()
   })
 })

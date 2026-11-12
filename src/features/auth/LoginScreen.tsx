@@ -87,7 +87,7 @@ export function LoginScreen({ db, onLogin }: LoginScreenProps) {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label htmlFor="identifier" className={labelClass}>
-                Telefone (WhatsApp)
+                Seu nome
               </label>
               <input
                 id="identifier"
@@ -95,7 +95,7 @@ export function LoginScreen({ db, onLogin }: LoginScreenProps) {
                 onChange={(event) => setIdentifier(event.target.value)}
                 inputMode="text"
                 autoComplete="username"
-                placeholder="(11) 91234-5678"
+                placeholder="Como o organizador cadastrou"
                 className={inputClass}
               />
             </div>
@@ -138,20 +138,20 @@ export function LoginScreen({ db, onLogin }: LoginScreenProps) {
         ) : (
           <form onSubmit={handleForgot} className="space-y-4">
             <p className="text-sm leading-relaxed text-ink/65">
-              Informe o telefone cadastrado. O organizador recebe o pedido e reenvia o
+              Informe o seu nome. O organizador recebe o pedido e reenvia o
               convite por WhatsApp para você criar uma nova senha. O resultado do sorteio
               não muda.
             </p>
             <div>
               <label htmlFor="forgot-phone" className={labelClass}>
-                Telefone (WhatsApp)
+                Seu nome
               </label>
               <input
                 id="forgot-phone"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
-                autoComplete="tel"
-                placeholder="(11) 91234-5678"
+                autoComplete="username"
+                placeholder="Como o organizador cadastrou"
                 className={inputClass}
               />
             </div>

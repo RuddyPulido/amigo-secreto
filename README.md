@@ -1,7 +1,7 @@
 # Amigo Secreto
 
 App web mobile-first para o amigo secreto de um grupo de amigos. Cada pessoa entra no **próprio
-celular** com telefone e senha, sorteia o próprio amigo secreto e só vê o próprio resultado.
+celular** com nome e senha, sorteia o próprio amigo secreto e só vê o próprio resultado.
 
 > Esta é a versão **multiusuário** (branch `feature/multiusuario-whatsapp`). A versão de um
 > celular único, publicada em https://ruddypulido.github.io/amigo-secreto/, continua na `main`.
@@ -16,7 +16,7 @@ celular** com telefone e senha, sorteia o próprio amigo secreto e só vê o pr�
   senha e já entra.
 - **Pessoas** — veem uma única tela: aguardando o organizador liberar, o botão **Sortear** quando
   liberado e, depois, **Ver quem eu tirei** (escondido por padrão).
-- **Esqueci a senha** — a pessoa informa o telefone; o pedido aparece no painel do organizador,
+- **Esqueci a senha** — a pessoa informa o nome; o pedido aparece no painel do organizador,
   que reenvia o convite. A nova senha **não altera o resultado do sorteio**.
 - **Regras** (globais): *Permitir sorteio entre familiares* e *Criança apenas sorteia criança*.
   O sorteio sempre fecha: cada pessoa sorteia uma vez, ninguém tira a si mesmo, e as regras são
@@ -71,5 +71,5 @@ npm run build
   esconde os resultados de quem não deve vê-los.
 - O envio do WhatsApp é **manual** (o organizador toca em enviar). Envio automático exigiria a API
   oficial do WhatsApp, com conta empresarial e custo.
-- Telefones novos devem ser cadastrados com DDD (o código do país 55 é adicionado automaticamente;
+- O login é pelo **nome** cadastrado (sem diferenciar acentos e maiúsculas; nomes são únicos e "admin" é reservado). O telefone serve só para enviar o convite e pode ser repetido entre pessoas (ex.: crianças). Telefones devem ser cadastrados com DDD (o código do país 55 é adicionado automaticamente;
   use `+` para números de outros países).

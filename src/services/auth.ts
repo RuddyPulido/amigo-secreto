@@ -1,13 +1,13 @@
 import { hashPersonPassword, isMasterIdentifier, isMasterLogin, validatePassword } from '../auth/credentials'
 import type { Db } from '../data/db'
-import { PATHS } from '../data/parse'
+import { PATHS, parsePeople } from '../data/parse'
 import { newToken } from '../lib/ids'
-import { normalizePhone } from '../lib/phone'
+import { nameKey } from '../lib/validation'
 import type { Credential, Id, Session } from '../types'
 
 export type AuthResult = { ok: true; session: Session } | { ok: false; message: string }
 
-const BAD_LOGIN = 'Telefone ou senha incorretos.'
+const BAD_LOGIN = 'Nome ou senha incorretos.'
 
 export async function login(db: Db, identifier: string, password: string): Promise<AuthResult> {
   if (isMasterIdentifier(identifier)) {
@@ -16,35 +16,30 @@ export async function login(db: Db, identifier: string, password: string): Promi
       : { ok: false, message: BAD_LOGIN }
   }
 
-  const phone = normalizePhone(identifier)
-  if (!phone) return { ok: false, message: BAD_LOGIN }
+  const person = await findPersonByName(db, identifier)
+  if (!person) return { ok: false, message: BAD_LOGIN }
 
-  // Várias pessoas podem compartilhar o mesmo telefone (ex.: crianças): a senha decide quem é.
-  const personIds = await personIdsByPhone(db, phone)
-  let anyPassword = false
-  for (const personId of personIds) {
-    const credential = await db.get<Credential>(`${PATHS.credentials}/${personId}`)
-    if (!credential?.passwordHash) continue
-    anyPassword = true
-    const passwordHash = hashPersonPassword(personId, password)
-    if (passwordHash === credential.passwordHash) {
-      return { ok: true, session: { role: 'person', personId, passwordHash } }
-    }
-  }
-
-  if (personIds.length > 0 && !anyPassword) {
+  const credential = await db.get<Credential>(`${PATHS.credentials}/${person.id}`)
+  if (!credential?.passwordHash) {
     return {
       ok: false,
       message:
         'Você ainda não criou sua senha. Abra o link do convite enviado por WhatsApp.',
     }
   }
-  return { ok: false, message: BAD_LOGIN }
+
+  const passwordHash = hashPersonPassword(person.id, password)
+  if (passwordHash !== credential.passwordHash) return { ok: false, message: BAD_LOGIN }
+
+  return { ok: true, session: { role: 'person', personId: person.id, passwordHash } }
 }
 
-async function personIdsByPhone(db: Db, phone: string): Promise<Id[]> {
-  const raw = await db.get<Record<string, unknown>>(`${PATHS.phones}/${phone}`)
-  return raw && typeof raw === 'object' ? Object.keys(raw) : []
+// O login é pelo nome (sem diferenciar acentos e maiúsculas); nomes são únicos.
+async function findPersonByName(db: Db, name: string) {
+  const key = nameKey(name)
+  if (!key) return null
+  const people = parsePeople(await db.get(PATHS.people))
+  return people.find((person) => nameKey(person.name) === key) ?? null
 }
 
 export interface InviteInfo {
@@ -74,21 +69,6 @@ export async function acceptInvite(db: Db, token: string, password: string): Pro
     }
   }
 
-  // Com telefone compartilhado, a senha é o que identifica a pessoa: não pode repetir.
-  const own = await db.get<Credential>(`${PATHS.credentials}/${invite.personId}`)
-  if (own) {
-    for (const otherId of await personIdsByPhone(db, own.phone)) {
-      if (otherId === invite.personId) continue
-      const otherHash = await db.get<string>(`${PATHS.credentials}/${otherId}/passwordHash`)
-      if (otherHash && otherHash === hashPersonPassword(otherId, password)) {
-        return {
-          ok: false,
-          message: 'Essa senha já é usada por outra pessoa com o mesmo telefone. Escolha outra.',
-        }
-      }
-    }
-  }
-
   const passwordHash = hashPersonPassword(invite.personId, password)
   await db.update({
     [`${PATHS.credentials}/${invite.personId}/passwordHash`]: passwordHash,
@@ -104,16 +84,14 @@ export async function acceptInvite(db: Db, token: string, password: string): Pro
 // reenvia o convite. O resultado do sorteio não é tocado.
 export async function requestPasswordReset(
   db: Db,
-  phoneInput: string,
+  nameInput: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const phone = normalizePhone(phoneInput)
-  const personIds = phone ? await personIdsByPhone(db, phone) : []
-  if (personIds.length === 0) {
-    return { ok: false, message: 'Não encontramos esse telefone. Confira o número cadastrado.' }
+  const person = await findPersonByName(db, nameInput)
+  if (!person) {
+    return { ok: false, message: 'Não encontramos esse nome. Confira como foi cadastrado.' }
   }
 
-  // Telefone compartilhado: o pedido vale para todas as pessoas desse número.
-  await db.update(Object.fromEntries(personIds.map((id) => [`${PATHS.resets}/${id}`, true])))
+  await db.set(`${PATHS.resets}/${person.id}`, true)
   return { ok: true }
 }
 
