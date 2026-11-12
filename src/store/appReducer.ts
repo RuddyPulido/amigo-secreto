@@ -6,9 +6,10 @@ export type AppAction =
   | { type: 'family/rename'; id: string; name: string }
   | { type: 'family/remove'; id: string }
   | { type: 'person/add'; person: Person }
-  | { type: 'person/update'; id: string; name: string; familyId: string }
+  | { type: 'person/update'; id: string; name: string; familyId: string; isChild: boolean }
   | { type: 'person/remove'; id: string }
   | { type: 'settings/setAllowSameFamily'; allow: boolean }
+  | { type: 'settings/setOnlyChildrenDrawChildren'; onlyChildrenDrawChildren: boolean }
   | { type: 'draw/assign'; drawerId: string; targetId: string }
   | { type: 'draw/reset' }
 
@@ -61,17 +62,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         return state
       }
 
-      const familyChanged = existing.familyId !== action.familyId
+      const constraintsChanged =
+        existing.familyId !== action.familyId || existing.isChild !== action.isChild
       const people = state.people.map((person) =>
         person.id === action.id
-          ? { ...person, name: action.name, familyId: action.familyId }
+          ? {
+              ...person,
+              name: action.name,
+              familyId: action.familyId,
+              isChild: action.isChild,
+            }
           : person,
       )
 
       return {
         ...state,
         people,
-        draw: familyChanged ? { assignments: {} } : state.draw,
+        draw: constraintsChanged ? { assignments: {} } : state.draw,
       }
     }
 
@@ -89,7 +96,25 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const hasDraw = Object.keys(state.draw.assignments).length > 0
       return {
         ...state,
-        settings: { allowSameFamily: action.allow },
+        settings: { ...state.settings, allowSameFamily: action.allow },
+        draw: hasDraw ? { assignments: {} } : state.draw,
+      }
+    }
+
+    case 'settings/setOnlyChildrenDrawChildren': {
+      if (
+        state.settings.onlyChildrenDrawChildren ===
+        action.onlyChildrenDrawChildren
+      ) {
+        return state
+      }
+      const hasDraw = Object.keys(state.draw.assignments).length > 0
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onlyChildrenDrawChildren: action.onlyChildrenDrawChildren,
+        },
         draw: hasDraw ? { assignments: {} } : state.draw,
       }
     }
@@ -102,7 +127,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (Object.values(state.draw.assignments).includes(action.targetId)) {
         return state
       }
-      if (!isPairAllowed(drawer, target, state.settings.allowSameFamily)) {
+      if (
+        !isPairAllowed(
+          drawer,
+          target,
+          state.settings.allowSameFamily,
+          state.settings.onlyChildrenDrawChildren,
+        )
+      ) {
         return state
       }
 

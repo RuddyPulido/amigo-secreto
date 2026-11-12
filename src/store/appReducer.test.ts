@@ -10,14 +10,27 @@ function makeState(): AppState {
       { id: 'f2', name: 'Souza' },
     ],
     people: [
-      { id: 'a', name: 'Ana', familyId: 'f1' },
-      { id: 'b', name: 'Bia', familyId: 'f1' },
-      { id: 'c', name: 'Caio', familyId: 'f2' },
-      { id: 'd', name: 'Duda', familyId: 'f2' },
+      { id: 'a', name: 'Ana', familyId: 'f1', isChild: false },
+      { id: 'b', name: 'Bia', familyId: 'f1', isChild: false },
+      { id: 'c', name: 'Caio', familyId: 'f2', isChild: false },
+      { id: 'd', name: 'Duda', familyId: 'f2', isChild: false },
     ],
-    settings: { allowSameFamily: false },
+    settings: { allowSameFamily: false, onlyChildrenDrawChildren: false },
     draw: { assignments: { a: 'c' } },
   }
+}
+
+function makeAgeState(): AppState {
+  const state = makeState()
+  state.people = [
+    { id: 'a', name: 'Ana', familyId: 'f1', isChild: true },
+    { id: 'b', name: 'Bia', familyId: 'f2', isChild: true },
+    { id: 'c', name: 'Caio', familyId: 'f1', isChild: false },
+    { id: 'd', name: 'Duda', familyId: 'f2', isChild: false },
+  ]
+  state.settings = { allowSameFamily: false, onlyChildrenDrawChildren: true }
+  state.draw = { assignments: {} }
+  return state
 }
 
 describe('cadastros', () => {
@@ -61,7 +74,7 @@ describe('cadastros', () => {
   it('adiciona pessoa e reinicia o sorteio', () => {
     const next = appReducer(makeState(), {
       type: 'person/add',
-      person: { id: 'e', name: 'Eva', familyId: 'f2' },
+      person: { id: 'e', name: 'Eva', familyId: 'f2', isChild: false },
     })
 
     expect(next.people.map((person) => person.id)).toContain('e')
@@ -74,6 +87,7 @@ describe('cadastros', () => {
       id: 'a',
       name: 'Ana Paula',
       familyId: 'f1',
+      isChild: false,
     })
 
     expect(next.people.find((person) => person.id === 'a')?.name).toBe('Ana Paula')
@@ -86,6 +100,7 @@ describe('cadastros', () => {
       id: 'c',
       name: 'Caio',
       familyId: 'f1',
+      isChild: false,
     })
 
     expect(next.people.find((person) => person.id === 'c')?.familyId).toBe('f1')
@@ -116,6 +131,60 @@ describe('regra de família', () => {
     expect(
       appReducer(state, { type: 'settings/setAllowSameFamily', allow: false }),
     ).toBe(state)
+  })
+})
+
+describe('separação por idade', () => {
+  it('alterar a separação por idade reinicia o sorteio', () => {
+    const next = appReducer(makeState(), {
+      type: 'settings/setOnlyChildrenDrawChildren',
+      onlyChildrenDrawChildren: true,
+    })
+
+    expect(next.settings.onlyChildrenDrawChildren).toBe(true)
+    expect(next.draw.assignments).toEqual({})
+  })
+
+  it('não muda nada ao definir o mesmo valor', () => {
+    const state = makeState()
+    expect(
+      appReducer(state, {
+        type: 'settings/setOnlyChildrenDrawChildren',
+        onlyChildrenDrawChildren: false,
+      }),
+    ).toBe(state)
+  })
+
+  it('alterar se a pessoa é criança reinicia o sorteio', () => {
+    const next = appReducer(makeState(), {
+      type: 'person/update',
+      id: 'a',
+      name: 'Ana',
+      familyId: 'f1',
+      isChild: true,
+    })
+
+    expect(next.people.find((person) => person.id === 'a')?.isChild).toBe(true)
+    expect(next.draw.assignments).toEqual({})
+  })
+
+  it('rejeita par entre criança e adulto com a regra ligada', () => {
+    const state = makeAgeState()
+    state.settings.allowSameFamily = true
+
+    expect(
+      appReducer(state, { type: 'draw/assign', drawerId: 'a', targetId: 'c' }),
+    ).toBe(state)
+  })
+
+  it('aceita par criança–criança com a regra ligada', () => {
+    const next = appReducer(makeAgeState(), {
+      type: 'draw/assign',
+      drawerId: 'a',
+      targetId: 'b',
+    })
+
+    expect(next.draw.assignments).toEqual({ a: 'b' })
   })
 })
 
@@ -183,16 +252,26 @@ describe('wouldResetDraw', () => {
   const cases: Array<[string, AppAction, boolean]> = [
     [
       'adicionar pessoa',
-      { type: 'person/add', person: { id: 'e', name: 'Eva', familyId: 'f2' } },
+      { type: 'person/add', person: { id: 'e', name: 'Eva', familyId: 'f2', isChild: false } },
       true,
     ],
     [
       'renomear pessoa',
-      { type: 'person/update', id: 'a', name: 'Ana Paula', familyId: 'f1' },
+      { type: 'person/update', id: 'a', name: 'Ana Paula', familyId: 'f1', isChild: false },
       false,
     ],
     ['renomear família', { type: 'family/rename', id: 'f1', name: 'Silva Lima' }, false],
     ['mudar toggle', { type: 'settings/setAllowSameFamily', allow: true }, true],
+    [
+      'mudar separação por idade',
+      { type: 'settings/setOnlyChildrenDrawChildren', onlyChildrenDrawChildren: true },
+      true,
+    ],
+    [
+      'mudar idade da pessoa',
+      { type: 'person/update', id: 'a', name: 'Ana', familyId: 'f1', isChild: true },
+      true,
+    ],
     ['adicionar família', { type: 'family/add', family: { id: 'f3', name: 'Nova' } }, false],
     ['excluir pessoa', { type: 'person/remove', id: 'b' }, true],
     ['registrar atribuição', { type: 'draw/assign', drawerId: 'b', targetId: 'd' }, false],

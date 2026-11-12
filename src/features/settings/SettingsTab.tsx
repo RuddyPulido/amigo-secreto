@@ -72,7 +72,8 @@ export function SettingsTab({ state, dispatch }: SettingsTabProps) {
         >
           <span className="font-semibold text-ink">Sorteio em andamento:</span>{' '}
           {count} de {state.people.length} já sortearam. Adicionar ou remover
-          pessoas, trocar a família de alguém ou mudar a regra reinicia o sorteio.
+          pessoas, trocar a família ou a idade de alguém, ou mudar as regras
+          reinicia o sorteio.
         </div>
       ) : null}
 
@@ -92,8 +93,15 @@ export function SettingsTab({ state, dispatch }: SettingsTabProps) {
 
       <RulesSection
         allowSameFamily={state.settings.allowSameFamily}
-        onChange={(allow) =>
+        onlyChildrenDrawChildren={state.settings.onlyChildrenDrawChildren}
+        onChangeAllowSameFamily={(allow) =>
           requestAction({ type: 'settings/setAllowSameFamily', allow })
+        }
+        onChangeOnlyChildrenDrawChildren={(value) =>
+          requestAction({
+            type: 'settings/setOnlyChildrenDrawChildren',
+            onlyChildrenDrawChildren: value,
+          })
         }
       />
 

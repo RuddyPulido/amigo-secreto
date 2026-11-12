@@ -8,6 +8,7 @@ import {
   validatePersonName,
 } from '../../lib/validation'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { Switch } from '../../components/Switch'
 import {
   cardClass,
   iconButtonClass,
@@ -37,10 +38,12 @@ export function PeopleSection({
 }: PeopleSectionProps) {
   const [newName, setNewName] = useState('')
   const [newFamilyId, setNewFamilyId] = useState('')
+  const [newIsChild, setNewIsChild] = useState(false)
   const [newError, setNewError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editFamilyId, setEditFamilyId] = useState('')
+  const [editIsChild, setEditIsChild] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Person | null>(null)
 
@@ -66,11 +69,13 @@ export function PeopleSection({
           id: newId(),
           name: normalizeName(newName),
           familyId: newFamilyId,
+          isChild: newIsChild,
         },
       },
       () => {
         setNewName('')
         setNewFamilyId('')
+        setNewIsChild(false)
       },
     )
   }
@@ -79,6 +84,7 @@ export function PeopleSection({
     setEditingId(person.id)
     setEditName(person.name)
     setEditFamilyId(person.familyId)
+    setEditIsChild(person.isChild)
     setEditError(null)
   }
 
@@ -103,6 +109,7 @@ export function PeopleSection({
         id: person.id,
         name: normalizeName(editName),
         familyId: editFamilyId,
+        isChild: editIsChild,
       },
       () => setEditingId(null),
     )
@@ -180,6 +187,15 @@ export function PeopleSection({
               </select>
             </div>
 
+            <div className="rounded-2xl border border-forest/10 p-3">
+              <Switch
+                checked={newIsChild}
+                onChange={setNewIsChild}
+                label="É criança"
+                description="Só entra no sorteio de crianças quando a opção estiver ligada nas regras."
+              />
+            </div>
+
             {newError ? (
               <p role="alert" className="text-sm text-berry">
                 {newError}
@@ -248,6 +264,14 @@ export function PeopleSection({
                                 </option>
                               ))}
                             </select>
+                            <div className="rounded-2xl border border-forest/10 p-3">
+                              <Switch
+                                checked={editIsChild}
+                                onChange={setEditIsChild}
+                                label="É criança"
+                                description="Só entra no sorteio de crianças quando a opção estiver ligada nas regras."
+                              />
+                            </div>
                             {editError ? (
                               <p role="alert" className="text-sm text-berry">
                                 {editError}
@@ -273,9 +297,16 @@ export function PeopleSection({
                           </form>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <p className="min-w-0 flex-1 truncate font-medium text-ink">
-                              {person.name}
-                            </p>
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <p className="min-w-0 truncate font-medium text-ink">
+                                {person.name}
+                              </p>
+                              {person.isChild ? (
+                                <span className="shrink-0 rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink/70">
+                                  Criança
+                                </span>
+                              ) : null}
+                            </div>
                             <button
                               type="button"
                               onClick={() => startEdit(person)}

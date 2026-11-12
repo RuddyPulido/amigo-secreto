@@ -66,8 +66,20 @@ export function DrawTab({ state, dispatch, onOpenSettings }: DrawTabProps) {
   )
   const feasibility = useMemo(
     () =>
-      checkFeasibility(people, families, settings.allowSameFamily, assignments),
-    [people, families, settings.allowSameFamily, assignments],
+      checkFeasibility(
+        people,
+        families,
+        settings.allowSameFamily,
+        assignments,
+        settings.onlyChildrenDrawChildren,
+      ),
+    [
+      people,
+      families,
+      settings.allowSameFamily,
+      settings.onlyChildrenDrawChildren,
+      assignments,
+    ],
   )
   const shuffleNames = useMemo(() => people.map((person) => person.name), [people])
 
@@ -102,6 +114,8 @@ export function DrawTab({ state, dispatch, onOpenSettings }: DrawTabProps) {
       settings.allowSameFamily,
       assignments,
       selectedId,
+      undefined,
+      settings.onlyChildrenDrawChildren,
     )
     if (!outcome.ok) {
       setDrawError(outcome.message)
@@ -233,6 +247,7 @@ export function DrawTab({ state, dispatch, onOpenSettings }: DrawTabProps) {
                         <option key={person.id} value={person.id}>
                           {person.name} —{' '}
                           {familyNameById.get(person.familyId) ?? 'Sem família'}
+                          {person.isChild ? ' · criança' : ''}
                         </option>
                       ))}
                     </select>
@@ -250,6 +265,9 @@ export function DrawTab({ state, dispatch, onOpenSettings }: DrawTabProps) {
                   <p className="text-center text-xs leading-relaxed text-ink/50">
                     Cada pessoa sorteia uma vez. O app garante que todos consigam
                     sortear sem repetir ninguém.
+                    {settings.onlyChildrenDrawChildren
+                      ? ' Crianças sorteiam apenas crianças e adultos apenas adultos.'
+                      : ''}
                   </p>
                 </form>
 

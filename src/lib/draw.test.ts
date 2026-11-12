@@ -24,15 +24,30 @@ function makeWorld(groups: string[][]): { families: Family[]; people: Person[] }
       id: name.toLowerCase(),
       name,
       familyId: `f${index}`,
+      isChild: false,
     })),
   )
   return { families, people }
 }
 
+function makeAgeWorld(
+  groups: string[][],
+  childNames: readonly string[],
+): { families: Family[]; people: Person[] } {
+  const world = makeWorld(groups)
+  return {
+    families: world.families,
+    people: world.people.map((person) => ({
+      ...person,
+      isChild: childNames.includes(person.name),
+    })),
+  }
+}
+
 describe('regras de par', () => {
-  const ana = { id: 'ana', name: 'Ana', familyId: 'f1' }
-  const bia = { id: 'bia', name: 'Bia', familyId: 'f1' }
-  const caio = { id: 'caio', name: 'Caio', familyId: 'f2' }
+  const ana = { id: 'ana', name: 'Ana', familyId: 'f1', isChild: false }
+  const bia = { id: 'bia', name: 'Bia', familyId: 'f1', isChild: false }
+  const caio = { id: 'caio', name: 'Caio', familyId: 'f2', isChild: false }
 
   it('proíbe a própria pessoa', () => {
     expect(isPairAllowed(ana, ana, true)).toBe(false)
@@ -285,6 +300,135 @@ describe('validação de sorteios', () => {
     const { people } = makeWorld([['a'], ['b']])
     expect(validateCompleteDraw(people, false, { a: 'b' })).toContain(
       'O sorteio ainda não foi concluído.',
+    )
+  })
+})
+
+describe('separação por idade', () => {
+  it('permite criança–criança e adulto–adulto, mas bloqueia criança–adulto', () => {
+    const childA = { id: 'a', name: 'A', familyId: 'f1', isChild: true }
+    const childB = { id: 'b', name: 'B', familyId: 'f2', isChild: true }
+    const adult = { id: 'c', name: 'C', familyId: 'f2', isChild: false }
+
+    expect(isPairAllowed(childA, childB, false, true)).toBe(true)
+    expect(isPairAllowed(childA, adult, false, true)).toBe(false)
+    expect(isPairAllowed(adult, childA, false, true)).toBe(false)
+    expect(isPairAllowed(childA, adult, false, false)).toBe(true)
+  })
+
+  it('exige pelo menos 2 crianças e 2 adultos quando a regra está ligada', () => {
+    const oneChild = makeAgeWorld([['a'], ['b'], ['c']], ['a'])
+    const childResult = checkFeasibility(
+      oneChild.people,
+      oneChild.families,
+      false,
+      {},
+      true,
+    )
+    expect(childResult).toMatchObject({
+      ok: false,
+      code: 'AGE_GROUP_TOO_SMALL',
+    })
+    if (!childResult.ok) expect(childResult.message).toContain('1 criança')
+
+    const oneAdult = makeAgeWorld([['a'], ['b'], ['c']], ['a', 'b'])
+    const adultResult = checkFeasibility(
+      oneAdult.people,
+      oneAdult.families,
+      false,
+      {},
+      true,
+    )
+    expect(adultResult).toMatchObject({
+      ok: false,
+      code: 'AGE_GROUP_TOO_SMALL',
+    })
+    if (!adultResult.ok) expect(adultResult.message).toContain('1 adulto')
+  })
+
+  it('aceita grupos de crianças e adultos em famílias diferentes', () => {
+    const { families, people } = makeAgeWorld(
+      [['a'], ['b'], ['c'], ['d']],
+      ['a', 'b'],
+    )
+    expect(checkFeasibility(people, families, false, {}, true)).toEqual({
+      ok: true,
+    })
+  })
+
+  it('rejeita família grande dentro do grupo de crianças', () => {
+    const { families, people } = makeAgeWorld(
+      [['a', 'b'], ['c'], ['d']],
+      ['a', 'b'],
+    )
+    const result = checkFeasibility(people, families, false, {}, true)
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'AGE_GROUP_FAMILY_TOO_LARGE',
+      familyId: 'f0',
+    })
+    if (!result.ok) {
+      expect(result.message).toContain('crianças')
+      expect(result.message).toContain('Família 1')
+    }
+  })
+
+  it('permite família grande dentro do grupo quando familiares podem se sortear', () => {
+    const { families, people } = makeAgeWorld(
+      [['a', 'b'], ['c', 'd']],
+      ['a', 'b'],
+    )
+    expect(checkFeasibility(people, families, true, {}, true)).toEqual({
+      ok: true,
+    })
+  })
+
+  it('sorteia apenas dentro do mesmo grupo de idade', () => {
+    const { people } = makeAgeWorld(
+      [['a'], ['b'], ['c'], ['d'], ['e'], ['f']],
+      ['a', 'b', 'c'],
+    )
+    const assignments: Assignments = {}
+    const rng = mulberry32(99)
+
+    for (const person of people) {
+      const outcome = drawForPerson(
+        people,
+        false,
+        assignments,
+        person.id,
+        rng,
+        true,
+      )
+      expect(outcome.ok).toBe(true)
+      if (!outcome.ok) return
+
+      const target = people.find((candidate) => candidate.id === outcome.targetId)
+      expect(target?.isChild).toBe(person.isChild)
+      expect(Object.values(assignments)).not.toContain(outcome.targetId)
+      assignments[person.id] = outcome.targetId
+      expect(validatePartialDraw(people, false, assignments, true)).toEqual([])
+    }
+
+    expect(validateCompleteDraw(people, false, assignments, true)).toEqual([])
+  })
+
+  it('evita alvo que deixaria o grupo de crianças sem saída', () => {
+    const { people } = makeAgeWorld(
+      [['a'], ['b'], ['c'], ['d'], ['e'], ['f']],
+      ['a', 'b', 'c'],
+    )
+    const viable = listViableTargets(people, false, { a: 'b' }, 'b', true)
+    expect(viable.map((person) => person.id)).toEqual(['c'])
+  })
+
+  it('detecta par entre idades diferentes na validação', () => {
+    const { people } = makeAgeWorld(
+      [['a'], ['b'], ['c'], ['d']],
+      ['a', 'b'],
+    )
+    expect(validatePartialDraw(people, false, { a: 'c' }, true)).toContain(
+      'Há um par inválido no sorteio.',
     )
   })
 })

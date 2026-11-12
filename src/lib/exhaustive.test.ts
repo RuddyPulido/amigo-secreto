@@ -54,6 +54,7 @@ function buildWorld(labels: readonly number[]): {
     id: `p${index}`,
     name: `Pessoa ${index + 1}`,
     familyId: `f${label}`,
+    isChild: false,
   }))
   return { families, people }
 }
@@ -111,6 +112,130 @@ describe('sorteio exaustivo', () => {
             expect(validateCompleteDraw(people, allowSameFamily, assignments)).toEqual([])
             expect(Object.keys(assignments)).toHaveLength(n)
             expect(new Set(Object.values(assignments)).size).toBe(n)
+          }
+        }
+      }
+    })
+  }
+})
+
+function largestFamilyCount(people: readonly Person[]): number {
+  const counts = new Map<string, number>()
+  for (const person of people) {
+    counts.set(person.familyId, (counts.get(person.familyId) ?? 0) + 1)
+  }
+  return counts.size > 0 ? Math.max(...counts.values()) : 0
+}
+
+function expectedAgeFeasibility(
+  people: readonly Person[],
+  allowSameFamily: boolean,
+  ageRule: boolean,
+): boolean {
+  if (people.length < 2) return false
+
+  const groups = ageRule
+    ? [
+        people.filter((person) => person.isChild),
+        people.filter((person) => !person.isChild),
+      ]
+    : [people]
+
+  for (const group of groups) {
+    if (group.length === 0) continue
+    if (ageRule && group.length === 1) return false
+    if (
+      !allowSameFamily &&
+      largestFamilyCount(group) > Math.floor(group.length / 2)
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+describe('sorteio exaustivo com separação por idade', () => {
+  for (const n of [2, 3, 4]) {
+    it(`n=${n}: todas as famílias, idades e ordens`, () => {
+      for (const labels of partitions(n)) {
+        const { families, people } = buildWorld(labels)
+
+        for (let mask = 0; mask < 1 << n; mask += 1) {
+          const aged = people.map((person, index) => ({
+            ...person,
+            isChild: (mask & (1 << index)) !== 0,
+          }))
+
+          for (const allowSameFamily of [false, true]) {
+            for (const ageRule of [false, true]) {
+              const expected = expectedAgeFeasibility(
+                aged,
+                allowSameFamily,
+                ageRule,
+              )
+              const feasibility = checkFeasibility(
+                aged,
+                families,
+                allowSameFamily,
+                {},
+                ageRule,
+              )
+              expect(
+                feasibility.ok,
+                `n=${n} labels=${labels} mask=${mask} family=${allowSameFamily} age=${ageRule}`,
+              ).toBe(expected)
+              if (!feasibility.ok) continue
+
+              for (const order of permutations(aged.map((person) => person.id))) {
+                const assignments: Assignments = {}
+                const rng = mulberry32(0x1234abcd)
+
+                for (const drawerId of order) {
+                  const drawer = aged.find((person) => person.id === drawerId)!
+                  const outcome = drawForPerson(
+                    aged,
+                    allowSameFamily,
+                    assignments,
+                    drawerId,
+                    rng,
+                    ageRule,
+                  )
+                  expect(outcome.ok).toBe(true)
+                  if (!outcome.ok) throw new Error(outcome.message)
+
+                  const target = aged.find(
+                    (person) => person.id === outcome.targetId,
+                  )!
+                  expect(Object.values(assignments)).not.toContain(target.id)
+                  if (ageRule) expect(target.isChild).toBe(drawer.isChild)
+                  if (!allowSameFamily) {
+                    expect(target.familyId).not.toBe(drawer.familyId)
+                  }
+
+                  assignments[drawerId] = target.id
+                  expect(
+                    validatePartialDraw(
+                      aged,
+                      allowSameFamily,
+                      assignments,
+                      ageRule,
+                    ),
+                  ).toEqual([])
+                }
+
+                expect(
+                  validateCompleteDraw(
+                    aged,
+                    allowSameFamily,
+                    assignments,
+                    ageRule,
+                  ),
+                ).toEqual([])
+                expect(Object.keys(assignments)).toHaveLength(n)
+                expect(new Set(Object.values(assignments)).size).toBe(n)
+              }
+            }
           }
         }
       }

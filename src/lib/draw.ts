@@ -4,6 +4,8 @@ import { cryptoRng32, randomInt, type Rng32 } from './rng'
 export type FeasibilityCode =
   | 'NOT_ENOUGH_PEOPLE'
   | 'TOO_MANY_SAME_FAMILY'
+  | 'AGE_GROUP_TOO_SMALL'
+  | 'AGE_GROUP_FAMILY_TOO_LARGE'
   | 'NO_PERFECT_MATCHING'
 
 export type Feasibility =
@@ -26,22 +28,27 @@ export function isPairAllowed(
   drawer: Person,
   target: Person,
   allowSameFamily: boolean,
+  onlyChildrenDrawChildren = false,
 ): boolean {
   return (
     drawer.id !== target.id &&
-    (allowSameFamily || drawer.familyId !== target.familyId)
+    (allowSameFamily || drawer.familyId !== target.familyId) &&
+    (!onlyChildrenDrawChildren || drawer.isChild === target.isChild)
   )
 }
 
 export function buildAllowed(
   people: readonly Person[],
   allowSameFamily: boolean,
+  onlyChildrenDrawChildren = false,
 ): Map<string, Set<string>> {
   const allowed = new Map<string, Set<string>>()
   for (const drawer of people) {
     const targets = new Set<string>()
     for (const target of people) {
-      if (isPairAllowed(drawer, target, allowSameFamily)) targets.add(target.id)
+      if (isPairAllowed(drawer, target, allowSameFamily, onlyChildrenDrawChildren)) {
+        targets.add(target.id)
+      }
     }
     allowed.set(drawer.id, targets)
   }
@@ -113,10 +120,15 @@ function largestFamily(people: readonly Person[]): { familyId: string; count: nu
   return { familyId, count }
 }
 
+function familyName(families: readonly Family[], familyId: string): string {
+  return families.find((family) => family.id === familyId)?.name ?? 'Sem família'
+}
+
 export function validatePartialDraw(
   people: readonly Person[],
   allowSameFamily: boolean,
   assignments: Assignments,
+  onlyChildrenDrawChildren = false,
 ): string[] {
   const issues: string[] = []
   const peopleById = new Map(people.map((person) => [person.id, person]))
@@ -127,7 +139,11 @@ export function validatePartialDraw(
     const target = peopleById.get(targetId)
     if (!drawer) issues.push('A pessoa que sorteou não existe mais.')
     if (!target) issues.push('A pessoa sorteada não existe mais.')
-    if (drawer && target && !isPairAllowed(drawer, target, allowSameFamily)) {
+    if (
+      drawer &&
+      target &&
+      !isPairAllowed(drawer, target, allowSameFamily, onlyChildrenDrawChildren)
+    ) {
       issues.push('Há um par inválido no sorteio.')
     }
     if (usedTargets.has(targetId)) {
@@ -145,7 +161,7 @@ export function validatePartialDraw(
     return issues
   }
 
-  const allowed = buildAllowed(people, allowSameFamily)
+  const allowed = buildAllowed(people, allowSameFamily, onlyChildrenDrawChildren)
   if (
     !hasPerfectMatching(
       drawers.map((person) => person.id),
@@ -163,8 +179,14 @@ export function validateCompleteDraw(
   people: readonly Person[],
   allowSameFamily: boolean,
   assignments: Assignments,
+  onlyChildrenDrawChildren = false,
 ): string[] {
-  const issues = validatePartialDraw(people, allowSameFamily, assignments)
+  const issues = validatePartialDraw(
+    people,
+    allowSameFamily,
+    assignments,
+    onlyChildrenDrawChildren,
+  )
   if (issues.length > 0) return issues
 
   if (Object.keys(assignments).length !== people.length) {
@@ -180,6 +202,7 @@ export function checkFeasibility(
   families: readonly Family[],
   allowSameFamily: boolean,
   assignments: Assignments,
+  onlyChildrenDrawChildren = false,
 ): Feasibility {
   const total = people.length
   if (total < 2) {
@@ -190,27 +213,70 @@ export function checkFeasibility(
     }
   }
 
-  if (!allowSameFamily) {
+  if (onlyChildrenDrawChildren) {
+    const groups = [
+      {
+        label: 'crianças',
+        singular: 'criança',
+        article: 'das',
+        people: people.filter((person) => person.isChild),
+      },
+      {
+        label: 'adultos',
+        singular: 'adulto',
+        article: 'dos',
+        people: people.filter((person) => !person.isChild),
+      },
+    ]
+
+    for (const group of groups) {
+      if (group.people.length === 1) {
+        return {
+          ok: false,
+          code: 'AGE_GROUP_TOO_SMALL',
+          message: `Com a regra “Criança apenas sorteia criança” ligada, há apenas 1 ${group.singular} no grupo. Cadastre pelo menos 2 ${group.label} ou desligue a regra.`,
+        }
+      }
+
+      if (!allowSameFamily && group.people.length >= 2) {
+        const { familyId, count } = largestFamily(group.people)
+        const limit = Math.floor(group.people.length / 2)
+        if (count > limit) {
+          return {
+            ok: false,
+            code: 'AGE_GROUP_FAMILY_TOO_LARGE',
+            familyId,
+            message: `A família “${familyName(families, familyId)}” tem ${count} de ${group.people.length} ${group.label}. Com o sorteio entre familiares desligado, nenhuma família pode ter mais da metade ${group.article} ${group.label} (${limit}). Ligue a opção de família ou ajuste as pessoas.`,
+          }
+        }
+      }
+    }
+  } else if (!allowSameFamily) {
     const { familyId, count } = largestFamily(people)
     const limit = Math.floor(total / 2)
     if (count > limit) {
-      const familyName =
-        families.find((family) => family.id === familyId)?.name ?? 'Sem família'
       return {
         ok: false,
         code: 'TOO_MANY_SAME_FAMILY',
         familyId,
-        message: `A família “${familyName}” tem ${count} de ${total} pessoas. Com o sorteio entre familiares desligado, nenhuma família pode ter mais da metade (${limit}). Ligue a opção nas configurações ou adicione pessoas de outras famílias.`,
+        message: `A família “${familyName(families, familyId)}” tem ${count} de ${total} pessoas. Com o sorteio entre familiares desligado, nenhuma família pode ter mais da metade (${limit}). Ligue a opção nas configurações ou adicione pessoas de outras famílias.`,
       }
     }
   }
 
-  if (validatePartialDraw(people, allowSameFamily, assignments).length > 0) {
+  if (
+    validatePartialDraw(
+      people,
+      allowSameFamily,
+      assignments,
+      onlyChildrenDrawChildren,
+    ).length > 0
+  ) {
+    const restrictions = onlyChildrenDrawChildren ? 'de família e idade' : 'de família'
     return {
       ok: false,
       code: 'NO_PERFECT_MATCHING',
-      message:
-        'Com as restrições atuais não é possível concluir o sorteio. Ajuste os cadastros ou reinicie o sorteio.',
+      message: `Com as restrições atuais ${restrictions} não é possível concluir o sorteio. Ajuste os cadastros ou reinicie o sorteio.`,
     }
   }
 
@@ -222,6 +288,7 @@ export function listViableTargets(
   allowSameFamily: boolean,
   assignments: Assignments,
   drawerId: string,
+  onlyChildrenDrawChildren = false,
 ): Person[] {
   const drawer = people.find((person) => person.id === drawerId)
   if (!drawer || Object.hasOwn(assignments, drawerId)) return []
@@ -230,7 +297,7 @@ export function listViableTargets(
   const targets = getRemainingTargets(people, assignments)
   if (drawers.length !== targets.length || drawers.length === 0) return []
 
-  const allowed = buildAllowed(people, allowSameFamily)
+  const allowed = buildAllowed(people, allowSameFamily, onlyChildrenDrawChildren)
   if (
     !hasPerfectMatching(
       drawers.map((person) => person.id),
@@ -246,7 +313,11 @@ export function listViableTargets(
     .map((person) => person.id)
 
   return targets.filter((target) => {
-    if (!isPairAllowed(drawer, target, allowSameFamily)) return false
+    if (
+      !isPairAllowed(drawer, target, allowSameFamily, onlyChildrenDrawChildren)
+    ) {
+      return false
+    }
     const remainingTargets = targets
       .filter((person) => person.id !== target.id)
       .map((person) => person.id)
@@ -260,6 +331,7 @@ export function drawForPerson(
   assignments: Assignments,
   drawerId: string,
   rng: Rng32 = cryptoRng32,
+  onlyChildrenDrawChildren = false,
 ): DrawOutcome {
   const drawer = people.find((person) => person.id === drawerId)
   if (!drawer) {
@@ -279,7 +351,7 @@ export function drawForPerson(
     }
   }
 
-  const allowed = buildAllowed(people, allowSameFamily)
+  const allowed = buildAllowed(people, allowSameFamily, onlyChildrenDrawChildren)
   if (
     !hasPerfectMatching(
       drawers.map((person) => person.id),
@@ -294,7 +366,13 @@ export function drawForPerson(
     }
   }
 
-  const viable = listViableTargets(people, allowSameFamily, assignments, drawerId)
+  const viable = listViableTargets(
+    people,
+    allowSameFamily,
+    assignments,
+    drawerId,
+    onlyChildrenDrawChildren,
+  )
   if (viable.length === 0) {
     return {
       ok: false,

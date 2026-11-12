@@ -9,11 +9,13 @@ navegador, sem backend, e é publicado como site estático no GitHub Pages.
 ## Funcionalidades
 
 - Aba **Sorteio** com um combo das pessoas que ainda não sortearam e o botão de sorteio.
-- Aba **Configurações** com cadastro de famílias (nome), cadastro de pessoas (nome + família) e a
-  regra global **Permitir sorteio entre familiares**.
+- Aba **Configurações** com cadastro de famílias (nome), cadastro de pessoas (nome, família e
+  indicação de criança) e as regras globais **Permitir sorteio entre familiares** e
+  **Criança apenas sorteia criança**.
 - Sorteio sempre concluível: cada pessoa sorteia exatamente uma vez, todos são sorteados
   exatamente uma vez, ninguém tira a si mesmo e, com a regra desligada, ninguém tira alguém
-  da própria família.
+  da própria família. Com a separação por idade ligada, crianças só tiram crianças e adultos só
+  tiram adultos.
 - Revelação privada: o resultado só aparece após um toque, pode ser ocultado e a lista
   "Quem já sorteou" permite reexibir com confirmação.
 - Persistência no `localStorage` e botão para reiniciar o sorteio mantendo os cadastros.
@@ -32,6 +34,9 @@ sorteiam, o sorteio nunca trava no meio e termina válido.
   problema e como resolver.
 - Com a regra **ligada**, pessoas da mesma família podem se sortear, mas ninguém sorteia a si
   mesmo(a).
+- Com **Criança apenas sorteia criança** ligada, crianças sorteiam apenas crianças e adultos
+  apenas adultos. Cada grupo precisa ter pelo menos 2 pessoas (a menos que esteja vazio) e
+  respeitar a regra de família. A marcação "É criança" fica no cadastro de cada pessoa.
 - A visibilidade da regra vale para todo o grupo e alterá-la durante um sorteio reinicia o
   sorteio, mediante confirmação.
 
@@ -79,6 +84,8 @@ Os cadastros e os sorteios ficam no `localStorage` **deste navegador/aparelho**,
 
 - Limpar os dados do site apaga famílias, pessoas e resultados.
 - Use uma aba por vez; abrir duas abas pode sobrescrever o estado.
+- Estados salvos antes da separação por idade são compatíveis: pessoas sem a marcação são
+  tratadas como adultas e a regra começa desligada.
 - O resultado é protegido contra olhares casuais (diálogo, ocultação e confirmação para reexibir),
   não contra alguém que inspecione o `localStorage` pelas ferramentas do navegador.
 - O app é estático e público no GitHub Pages; os dados não são enviados para lugar nenhum.

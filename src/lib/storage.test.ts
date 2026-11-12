@@ -55,12 +55,12 @@ function makeState(): AppState {
       { id: 'f2', name: 'Souza' },
     ],
     people: [
-      { id: 'a', name: 'Ana', familyId: 'f1' },
-      { id: 'b', name: 'Bia', familyId: 'f1' },
-      { id: 'c', name: 'Caio', familyId: 'f2' },
-      { id: 'd', name: 'Duda', familyId: 'f2' },
+      { id: 'a', name: 'Ana', familyId: 'f1', isChild: false },
+      { id: 'b', name: 'Bia', familyId: 'f1', isChild: false },
+      { id: 'c', name: 'Caio', familyId: 'f2', isChild: false },
+      { id: 'd', name: 'Duda', familyId: 'f2', isChild: false },
     ],
-    settings: { allowSameFamily: false },
+    settings: { allowSameFamily: false, onlyChildrenDrawChildren: false },
     draw: { assignments: { a: 'c' } },
   }
 }
@@ -116,7 +116,7 @@ describe('dados corrompidos', () => {
 describe('sanitização de cadastros', () => {
   it('descarta pessoas com família inexistente', () => {
     const raw = makeState()
-    raw.people.push({ id: 'z', name: 'Zé', familyId: 'f9' })
+    raw.people.push({ id: 'z', name: 'Zé', familyId: 'f9', isChild: false })
 
     const loaded = loadState(storeRaw(raw))
 
@@ -127,7 +127,7 @@ describe('sanitização de cadastros', () => {
   it('normaliza nomes', () => {
     const raw = makeState()
     raw.families[0] = { id: 'f1', name: '  Silva  ' }
-    raw.people[0] = { id: 'a', name: '  Ana   Maria ', familyId: 'f1' }
+    raw.people[0] = { id: 'a', name: '  Ana   Maria ', familyId: 'f1', isChild: false }
 
     const loaded = loadState(storeRaw(raw))
 
@@ -196,6 +196,66 @@ describe('sanitização do sorteio', () => {
     const loaded = loadState(storeRaw(makeState()))
     expect(loaded.state.draw.assignments).toEqual({ a: 'c' })
     expect(loaded.notice).toBeNull()
+  })
+})
+
+describe('separação por idade', () => {
+  const families = [
+    { id: 'f1', name: 'Silva' },
+    { id: 'f2', name: 'Souza' },
+  ]
+  const people = [
+    { id: 'a', name: 'Ana', familyId: 'f1', isChild: true },
+    { id: 'b', name: 'Bia', familyId: 'f2', isChild: true },
+    { id: 'c', name: 'Caio', familyId: 'f1', isChild: false },
+    { id: 'd', name: 'Duda', familyId: 'f2', isChild: false },
+  ]
+  const settings = { allowSameFamily: false, onlyChildrenDrawChildren: true }
+
+  it('descarta par entre criança e adulto com a regra ligada', () => {
+    const storage = storeRaw({
+      version: 1,
+      families,
+      people,
+      settings,
+      draw: { assignments: { a: 'c' } },
+    })
+
+    const loaded = loadState(storage)
+
+    expect(loaded.state.draw.assignments).toEqual({})
+    expect(loaded.notice).toBe('draw-discarded')
+    expect(loaded.state.people).toHaveLength(4)
+  })
+
+  it('mantém um sorteio separado por idade válido', () => {
+    const assignments = { a: 'b', b: 'a', c: 'd', d: 'c' }
+    const storage = storeRaw({
+      version: 1,
+      families,
+      people,
+      settings,
+      draw: { assignments },
+    })
+
+    const loaded = loadState(storage)
+
+    expect(loaded.state.draw.assignments).toEqual(assignments)
+    expect(loaded.notice).toBeNull()
+  })
+
+  it('assume adulto e regra desligada em dados antigos', () => {
+    const storage = storeRaw({
+      version: 1,
+      families: [{ id: 'f1', name: 'Silva' }],
+      people: [{ id: 'a', name: 'Ana', familyId: 'f1' }],
+      draw: { assignments: {} },
+    })
+
+    const loaded = loadState(storage)
+
+    expect(loaded.state.people[0]?.isChild).toBe(false)
+    expect(loaded.state.settings.onlyChildrenDrawChildren).toBe(false)
   })
 })
 

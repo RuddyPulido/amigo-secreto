@@ -14,8 +14,8 @@ const families: Family[] = [
 ]
 
 const people: Person[] = [
-  { id: 'p1', name: 'Ana', familyId: 'f1' },
-  { id: 'p2', name: 'Bia', familyId: 'f2' },
+  { id: 'p1', name: 'Ana', familyId: 'f1', isChild: false },
+  { id: 'p2', name: 'Bia', familyId: 'f2', isChild: false },
 ]
 
 describe('normalizeName e nameKey', () => {

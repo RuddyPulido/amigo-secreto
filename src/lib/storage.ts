@@ -33,7 +33,7 @@ export function createInitialState(): AppState {
     version: 1,
     families: [],
     people: [],
-    settings: { allowSameFamily: false },
+    settings: { allowSameFamily: false, onlyChildrenDrawChildren: false },
     draw: { assignments: {} },
   }
 }
@@ -92,12 +92,14 @@ function sanitizeState(raw: unknown): LoadResult | null {
     if (!normalized || normalized.length > MAX_PERSON_NAME_LENGTH) continue
     if (personIds.has(id) || !familyIds.has(familyId)) continue
 
-    people.push({ id, name: normalized, familyId })
+    people.push({ id, name: normalized, familyId, isChild: item.isChild === true })
     personIds.add(id)
   }
 
   const allowSameFamily =
     isRecord(raw.settings) && raw.settings.allowSameFamily === true
+  const onlyChildrenDrawChildren =
+    isRecord(raw.settings) && raw.settings.onlyChildrenDrawChildren === true
 
   let assignments: Assignments = {}
   let notice: LoadNotice = null
@@ -118,7 +120,7 @@ function sanitizeState(raw: unknown): LoadResult | null {
         invalid = true
         break
       }
-      if (!isPairAllowed(drawer, target, allowSameFamily)) {
+      if (!isPairAllowed(drawer, target, allowSameFamily, onlyChildrenDrawChildren)) {
         invalid = true
         break
       }
@@ -129,7 +131,14 @@ function sanitizeState(raw: unknown): LoadResult | null {
 
     if (!invalid && entries.length > 0) {
       const candidate: Assignments = Object.fromEntries(entries)
-      if (validatePartialDraw(people, allowSameFamily, candidate).length > 0) {
+      if (
+        validatePartialDraw(
+          people,
+          allowSameFamily,
+          candidate,
+          onlyChildrenDrawChildren,
+        ).length > 0
+      ) {
         invalid = true
       }
     }
@@ -147,7 +156,7 @@ function sanitizeState(raw: unknown): LoadResult | null {
       version: 1,
       families,
       people,
-      settings: { allowSameFamily },
+      settings: { allowSameFamily, onlyChildrenDrawChildren },
       draw: { assignments },
     },
     notice,

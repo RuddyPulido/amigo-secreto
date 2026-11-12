@@ -48,6 +48,7 @@ export function CompletedList({
               <p className="truncate font-medium text-ink">{person.name}</p>
               <p className="truncate text-xs text-ink/50">
                 {familyNameById.get(person.familyId) ?? 'Sem família'}
+                {person.isChild ? ' · criança' : ''}
               </p>
             </div>
             <button
